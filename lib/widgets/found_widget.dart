@@ -9,7 +9,8 @@ class FoundItemsTab extends StatelessWidget {
   final int crossAxisCount;
   final double aspectRatio;
   final String searchQuery;
-  final Position? nearbyPosition;
+  final Position? nearbyPosition; // User's current location (nullable)
+  final double distanceFilterKm; // New parameter for 1km filter (default to 1.0)
 
   const FoundItemsTab({
     super.key,
@@ -17,63 +18,78 @@ class FoundItemsTab extends StatelessWidget {
     required this.aspectRatio,
     required this.searchQuery,
     this.nearbyPosition,
+    this.distanceFilterKm = 1.0, // Default to 1 km
   });
 
   @override
   Widget build(BuildContext context) {
-    // MissingItemsTab se liye gaye responsive values
     double screenHeight = MediaQuery.of(context).size.height;
-    double imageHeight = screenHeight * 0.18; // Responsive image height
+    double imageHeight = screenHeight * 0.18;
     double paddingValue = screenHeight * 0.01;
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('reports')
           .orderBy('timestamp', descending: true)
+          .where('status', isNotEqualTo: 'claimed by real owner')
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
               child: CircularProgressIndicator(color: Colors.teal));
         }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const Center(child: Text('No items reported yet.'));
         }
 
-        final filteredDocs = snapshot.data!.docs.where((doc) {
+        final allFoundItems = snapshot.data!.docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final reportType = data['reportType'] ?? '';
-          if (reportType != 'found') return false;
+          return reportType == 'found'; // Only include 'found' items
+        }).toList();
 
+        final filteredDocs = allFoundItems.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+
+          // --- Search Query Filter ---
           final itemName = (data['itemName'] ?? '').toString().toLowerCase();
-          final description =
-          (data['description'] ?? '').toString().toLowerCase();
+          final description = (data['description'] ?? '').toString().toLowerCase();
           final query = searchQuery.toLowerCase();
+          final matchesSearch = itemName.contains(query) || description.contains(query) || query.isEmpty;
+          if (!matchesSearch) return false; // If it doesn't match search, exclude it
 
-          final matchesSearch = itemName.contains(query) ||
-              description.contains(query) ||
-              query.isEmpty;
+          // --- Nearby Position Filter (if active) ---
+          if (nearbyPosition != null && data['latitude'] != null && data['longitude'] != null) {
+            final itemLat = data['latitude'] as double;
+            final itemLng = data['longitude'] as double;
 
-          if (!matchesSearch) return false;
-
-          if (nearbyPosition != null &&
-              data['latitude'] != null &&
-              data['longitude'] != null) {
-            final itemLat = data['latitude'];
-            final itemLng = data['longitude'];
-            final distance = Geolocator.distanceBetween(
+            // Calculate distance in meters
+            final double distanceInMeters = Geolocator.distanceBetween(
                 nearbyPosition!.latitude,
                 nearbyPosition!.longitude,
                 itemLat,
                 itemLng);
-            return distance <= 1000; // 10 km radius
+
+            // Filter for items within the specified distanceFilterKm (converted to meters)
+            return distanceInMeters <= (distanceFilterKm * 1000); // 1 km = 1000 meters
           }
 
+          // If nearbyPosition is null (filter not active), or no location data,
+          // and it passed the search filter, include it.
           return true;
         }).toList();
 
         if (filteredDocs.isEmpty) {
-          return const Center(child: Text('No matching found items.'));
+          String message = 'No available found items matching your criteria.';
+          if (nearbyPosition != null) {
+            message = 'No found items within ${distanceFilterKm}km radius matching your criteria.';
+          } else if (searchQuery.isNotEmpty) {
+            message = 'No found items matching "${searchQuery}".';
+          }
+          return Center(child: Text(message, style: const TextStyle(color: Colors.black54, fontSize: 16)));
         }
 
         return Padding(
@@ -93,8 +109,26 @@ class FoundItemsTab extends StatelessWidget {
               final imageBytes = base64Image.isNotEmpty
                   ? base64Decode(base64Image)
                   : null;
-              final reportedBy = data['reportedBy'] ?? 'Unknown'; // MissingItemsTab se copy kiya
+              final reportedBy = data['reportedBy'] ?? 'Unknown';
               final reportId = filteredDocs[index].id;
+              final itemStatus = data['status'] ?? 'unknown';
+
+              String statusDisplay = '';
+              Color statusColor = Colors.white70;
+              if (itemStatus == 'at police station') {
+                statusDisplay = 'At Police Station';
+                statusColor = Colors.orange.shade300;
+              } else if (itemStatus == 'collected at police station') {
+                statusDisplay = 'Collected at Police Station';
+                statusColor = Colors.blue.shade300;
+              } else if (itemStatus == 'with founder') {
+                statusDisplay = 'With Founder';
+                statusColor = Colors.green.shade300;
+              } else if (itemStatus == 'awaiting collection') {
+                statusDisplay = 'Awaiting Collection';
+                statusColor = Colors.purple.shade300;
+              }
+
 
               return GestureDetector(
                 onTap: () {
@@ -108,47 +142,46 @@ class FoundItemsTab extends StatelessWidget {
                           )));
                 },
                 child: Card(
-                  // CARD COLOR CHANGED TO MATCH MissingItemsTab
                   color: const Color(0xFF1A4140),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                   elevation: 4,
-                  child: SingleChildScrollView( // Added SingleChildScrollView as in MissingItemsTab
-                    physics: const NeverScrollableScrollPhysics(), // Added NeverScrollableScrollPhysics
+                  child: SingleChildScrollView(
+                    physics: const NeverScrollableScrollPhysics(),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start, // Changed to start
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (imageBytes != null) // Conditional image display
+                        if (imageBytes != null)
                           ClipRRect(
                             borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(10)), // Radius changed to 10
+                                top: Radius.circular(10)),
                             child: Image.memory(
                               imageBytes,
-                              height: imageHeight, // Responsive height
+                              height: imageHeight,
                               width: double.infinity,
                               fit: BoxFit.cover,
                             ),
                           )
                         else
                           Container(
-                            height: imageHeight, // Responsive height
+                            height: imageHeight,
                             width: double.infinity,
                             decoration: const BoxDecoration(
-                              color: Color(0xFFE0F7FA), // MissingItemsTab's No Image color
+                              color: Color(0xFFE0F7FA),
                               borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
                             ),
                             alignment: Alignment.center,
                             child: const Text(
-                              'No Image Found', // Text for no image
+                              'No Image Found',
                               style: TextStyle(
-                                color: Colors.black, // Color for no image text
+                                color: Colors.black,
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                         Padding(
-                          padding: EdgeInsets.all(paddingValue), // Responsive padding
+                          padding: EdgeInsets.all(paddingValue),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -156,20 +189,26 @@ class FoundItemsTab extends StatelessWidget {
                                 itemName,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFFF5DEB3), // Item Name color from MissingItemsTab
+                                  color: Color(0xFFF5DEB3),
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Reported by: $reportedBy', // Reported By text
-                                style: const TextStyle(color: Colors.white70, fontSize: 12), // Reported By color from MissingItemsTab
+                                'Reported by: $reportedBy',
+                                style: const TextStyle(color: Colors.white70, fontSize: 12),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
+                              if (statusDisplay.isNotEmpty)
+                                Text(
+                                  'Status: $statusDisplay',
+                                  style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.w600),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               const SizedBox(height: 2),
-                              // Aap yahan aur details add kar sakte hain agar MissingItemsTab mein hain
                             ],
                           ),
                         ),

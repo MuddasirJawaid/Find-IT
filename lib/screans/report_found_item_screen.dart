@@ -109,11 +109,16 @@ class _ReportFoundItemScreenState extends State<ReportFoundItemScreen> {
         final double missingLng = missingReportData['longitude'] ?? 0.0;
         final String missingReporterUid = missingReportData['uid'] ?? '';
 
-        // Simple similarity check: Item Name, Color, and Location Proximity
-        bool nameMatches = newFoundItemName.toLowerCase() == missingItemName.toLowerCase();
-        bool colorMatches = newFoundItemColor.toLowerCase() == missingItemColor.toLowerCase();
+        // Convert to lowercase for case-insensitive comparison
+        final String lowerMissingName = missingItemName.toLowerCase();
+        final String lowerFoundName = newFoundItemName.toLowerCase(); // Use the newly found item's name
+        final String lowerMissingColor = missingItemColor.toLowerCase();
+        final String lowerFoundColor = newFoundItemColor.toLowerCase(); // Use the newly found item's color
 
-        // Calculate distance (in meters)
+        bool isSimilar = false;
+        const double proximityThresholdMeters = 5000; // 5 kilometers
+        const double closerProximityMeters = 2000; // 2 kilometers for average matches
+
         double distanceInMeters = Geolocator.distanceBetween(
           newFoundLat,
           newFoundLng,
@@ -121,14 +126,32 @@ class _ReportFoundItemScreenState extends State<ReportFoundItemScreen> {
           missingLng,
         );
 
-        // Consider a match if name and color match, AND distance is within 5000 meters (5 km)
-        // Or if only name matches and distance is very close (e.g., 1000 meters)
-        bool isSimilar = false;
-        if (nameMatches && colorMatches && distanceInMeters <= 5000) { // Name, Color, and within 5km
-          isSimilar = true;
-        } else if (nameMatches && distanceInMeters <= 1000) { // Only Name, but very close (within 1km)
+        // --- YAHAN TABDEELI HAI: Enhanced Similarity Logic for ReportFoundItemScreen ---
+
+        // Condition 1: Exact item name match AND within 5km proximity
+        if (lowerMissingName == lowerFoundName && distanceInMeters <= proximityThresholdMeters) {
           isSimilar = true;
         }
+        // Condition 2: Missing item name is a substring of found item name (or vice-versa)
+        // AND Color matches AND within 5km proximity
+        else if (
+        (lowerFoundName.contains(lowerMissingName) || lowerMissingName.contains(lowerFoundName)) &&
+            lowerMissingColor == lowerFoundColor &&
+            distanceInMeters <= proximityThresholdMeters
+        ) {
+          isSimilar = true;
+        }
+        // Condition 3: Missing item name is a substring of found item name (or vice-versa)
+        // AND Color DOES NOT match, but within a closer proximity (2km)
+        else if (
+        (lowerFoundName.contains(lowerMissingName) || lowerMissingName.contains(lowerFoundName)) &&
+            lowerMissingColor != lowerFoundColor &&
+            distanceInMeters <= closerProximityMeters
+        ) {
+          isSimilar = true;
+        }
+
+        // --- END Enhanced Similarity Logic ---
 
         if (isSimilar && missingReporterUid.isNotEmpty && missingReporterUid != userUid) {
           // Send notification to the user who reported the missing item

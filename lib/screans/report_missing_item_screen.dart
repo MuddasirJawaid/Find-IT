@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart'; // Import for placemarkFromCoordinates if needed for missing item's address
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../provider/auth_provider.dart' as myAuth;
@@ -24,7 +25,6 @@ class _ReportMissingItemScreenState extends State<ReportMissingItemScreen> {
   final contactController = TextEditingController();
   final picker = ImagePicker();
 
-  // Declare _isLoading variable and initialize it to false
   bool _isLoading = false;
 
   Future<void> _pickImage() async {
@@ -73,7 +73,6 @@ class _ReportMissingItemScreenState extends State<ReportMissingItemScreen> {
     );
   }
 
-
   Future<void> _uploadData() async {
     if (itemNameController.text.isEmpty ||
         categoryController.text.isEmpty ||
@@ -87,13 +86,17 @@ class _ReportMissingItemScreenState extends State<ReportMissingItemScreen> {
       return;
     }
 
-    // Set _isLoading to true when starting the upload
     setState(() {
       _isLoading = true;
     });
 
     try {
       Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      // You can also get a reverse geocoded address for the missing item's location here if needed
+      // List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+      // String address = placemarks.isNotEmpty ? "${placemarks[0].street}, ${placemarks[0].locality}, ${placemarks[0].country}" : "Unknown Location";
+
+
       final userProvider = Provider.of<myAuth.AuthProvider>(context, listen: false);
       final userEmail = userProvider.user?.email ?? "Unknown";
       final userUid = userProvider.user?.uid ?? "Unknown";
@@ -104,7 +107,8 @@ class _ReportMissingItemScreenState extends State<ReportMissingItemScreen> {
         base64Image = base64Encode(bytes);
       }
 
-      await FirebaseFirestore.instance.collection('reports').add({
+      // Save the new "missing item" report
+      final newReportRef = await FirebaseFirestore.instance.collection('reports').add({
         'reportType': 'missing',
         'itemName': itemNameController.text.trim(),
         'category': categoryController.text.trim(),
@@ -120,19 +124,95 @@ class _ReportMissingItemScreenState extends State<ReportMissingItemScreen> {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
+      final String newMissingReportId = newReportRef.id;
+      final String newMissingItemName = itemNameController.text.trim();
+      final String newMissingItemColor = colorController.text.trim();
+      final double newMissingLat = position.latitude;
+      final double newMissingLng = position.longitude;
+
+      // --- START: Check for similar FOUND items immediately ---
+      final foundReportsSnapshot = await FirebaseFirestore.instance
+          .collection('reports')
+          .where('reportType', isEqualTo: 'found')
+          .where('status', whereIn: ['with founder', 'at police station', 'collected at police station']) // Only consider available found items
+          .get();
+
+      for (final foundReportDoc in foundReportsSnapshot.docs) {
+        final foundReportData = foundReportDoc.data();
+        final String foundItemName = foundReportData['itemName'] ?? '';
+        final String foundItemColor = foundReportData['color'] ?? '';
+        final double foundLat = foundReportData['latitude'] ?? 0.0;
+        final double foundLng = foundReportData['longitude'] ?? 0.0;
+        // String foundReporterUid = foundReportData['uid'] ?? ''; // Not needed for notification to current user
+
+        // Convert to lowercase for case-insensitive comparison
+        final String lowerMissingName = newMissingItemName.toLowerCase();
+        final String lowerFoundName = foundItemName.toLowerCase();
+        final String lowerMissingColor = newMissingItemColor.toLowerCase();
+        final String lowerFoundColor = foundItemColor.toLowerCase();
+
+        bool isSimilar = false;
+        const double proximityThresholdMeters = 5000; // 5 kilometers
+        const double closerProximityMeters = 2000; // 2 kilometers for average matches
+
+        double distanceInMeters = Geolocator.distanceBetween(
+          newMissingLat,   // Newly missing item's lat
+          newMissingLng,   // Newly missing item's lng
+          foundLat,        // Existing found item's lat
+          foundLng,        // Existing found item's lng
+        );
+
+        // Condition 1: Exact item name match AND within 5km proximity
+        if (lowerMissingName == lowerFoundName && distanceInMeters <= proximityThresholdMeters) {
+          isSimilar = true;
+        }
+        // Condition 2: Missing item name is a substring of found item name (or vice-versa)
+        // AND Color matches AND within 5km proximity
+        else if (
+        (lowerFoundName.contains(lowerMissingName) || lowerMissingName.contains(lowerFoundName)) &&
+            lowerMissingColor == lowerFoundColor &&
+            distanceInMeters <= proximityThresholdMeters
+        ) {
+          isSimilar = true;
+        }
+        // Condition 3: Missing item name is a substring of found item name (or vice-versa)
+        // AND Color DOES NOT match, but within a closer proximity (2km)
+        else if (
+        (lowerFoundName.contains(lowerMissingName) || lowerMissingName.contains(lowerFoundName)) &&
+            lowerMissingColor != lowerFoundColor &&
+            distanceInMeters <= closerProximityMeters
+        ) {
+          isSimilar = true;
+        }
+
+        if (isSimilar) {
+          // Send notification to the user who just reported the missing item
+          await FirebaseFirestore.instance.collection('notifications').add({
+            'userId': userUid, // Notification for the current user (who just reported missing)
+            'message': 'We found a similar item "${foundItemName}" to your missing report "${newMissingItemName}" near you. Check "Is This Yours?" section!',
+            'timestamp': FieldValue.serverTimestamp(),
+            'read': false,
+            'type': 'similar_found_item_match', // New type for this notification
+            'relatedItemId': foundReportDoc.id, // This is the ID of the FOUND item
+            'relatedMissingReportId': newMissingReportId, // ID of the missing report that was just created
+          });
+        }
+      }
+      // --- END: Check for similar FOUND items immediately ---
+
+
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Missing item reported successfully')),
+          const SnackBar(content: Text('Missing item reported successfully! We checked for similar found items.')),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+        SnackBar(content: Text('Error reporting missing item or checking for matches: ${e.toString()}')),
       );
     } finally {
-      // Set _isLoading back to false after upload completes or an error occurs
-      if (mounted) { // Check if the widget is still mounted before calling setState
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
@@ -159,7 +239,6 @@ class _ReportMissingItemScreenState extends State<ReportMissingItemScreen> {
                     fontSize: 22,
                     fontWeight: FontWeight.bold)),
             const Spacer(),
-
           ],
         ),
       ),
@@ -205,7 +284,7 @@ class _ReportMissingItemScreenState extends State<ReportMissingItemScreen> {
               Image.file(_imageFile!, height: 200),
             ],
             const SizedBox(height: 20),
-            _isLoading // Use the declared _isLoading variable here
+            _isLoading
                 ? const Center(child: CircularProgressIndicator(color: Color(0xFF1A4140)))
                 : ElevatedButton(
               onPressed: _uploadData,

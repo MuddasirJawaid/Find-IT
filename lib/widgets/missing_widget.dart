@@ -1,13 +1,15 @@
-import 'dart:convert';
+import 'dart:convert'; // For base64Decode
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:geolocator/geolocator.dart'; // For distance calculation
 
 class MissingItemsTab extends StatelessWidget {
   final int crossAxisCount;
   final double aspectRatio;
   final String searchQuery;
   final Position? nearbyPosition;
+  // --- ADDED: distanceFilterKm parameter ---
+  final double distanceFilterKm;
 
   const MissingItemsTab({
     super.key,
@@ -15,6 +17,8 @@ class MissingItemsTab extends StatelessWidget {
     required this.aspectRatio,
     this.searchQuery = '',
     this.nearbyPosition,
+    // --- ADDED: distanceFilterKm to constructor ---
+    this.distanceFilterKm = 1.0, // Default to 1 km
   });
 
   @override
@@ -30,43 +34,55 @@ class MissingItemsTab extends StatelessWidget {
           .orderBy('timestamp', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: Colors.orange));
         }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(child: Text('No missing items reported yet.'));
+        }
 
-        final docs = snapshot.data!.docs.where((doc) {
+        final filteredDocs = snapshot.data!.docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final itemName = (data['itemName'] ?? '').toString().toLowerCase();
           final description = (data['description'] ?? '').toString().toLowerCase();
 
-          if (searchQuery.isNotEmpty) {
-            final query = searchQuery.toLowerCase();
-            if (!itemName.contains(query) && !description.contains(query)) {
-              return false;
-            }
+          // --- Search Query Filter ---
+          final query = searchQuery.toLowerCase();
+          final matchesSearch = itemName.contains(query) || description.contains(query) || query.isEmpty;
+          if (!matchesSearch) return false;
+
+          // --- Nearby Position Filter (if active) ---
+          if (nearbyPosition != null && data['latitude'] != null && data['longitude'] != null) {
+            final itemLat = data['latitude'] as double;
+            final itemLng = data['longitude'] as double;
+
+            // Calculate distance in meters
+            final double distanceInMeters = Geolocator.distanceBetween(
+              nearbyPosition!.latitude,
+              nearbyPosition!.longitude,
+              itemLat,
+              itemLng,
+            );
+
+            // Filter for items within the specified distanceFilterKm (converted to meters)
+            // Corrected: distance > 1000 for 1km, not 5000.
+            return distanceInMeters <= (distanceFilterKm * 1000); // e.g., 1km = 1000 meters
           }
 
-          if (nearbyPosition != null) {
-            final itemLat = data['latitude'];
-            final itemLng = data['longitude'];
-            if (itemLat != null && itemLng != null) {
-              double distance = Geolocator.distanceBetween(
-                nearbyPosition!.latitude,
-                nearbyPosition!.longitude,
-                itemLat,
-                itemLng,
-              );
-              if (distance > 5000) {
-                return false;
-              }
-            }
-          }
-
-          return true;
+          return true; // If no nearby filter or no location data, and passed search, include.
         }).toList();
 
-        if (docs.isEmpty) {
-          return const Center(child: Text('No nearby missing items found.'));
+        if (filteredDocs.isEmpty) {
+          String message = 'No available missing items matching your criteria.';
+          if (nearbyPosition != null) {
+            message = 'No missing items within ${distanceFilterKm}km radius matching your criteria.';
+          } else if (searchQuery.isNotEmpty) {
+            message = 'No missing items matching "${searchQuery}".';
+          }
+          return Center(child: Text(message, style: const TextStyle(color: Colors.black54, fontSize: 16)));
         }
 
         return GridView.builder(
@@ -77,9 +93,9 @@ class MissingItemsTab extends StatelessWidget {
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
           ),
-          itemCount: docs.length,
+          itemCount: filteredDocs.length,
           itemBuilder: (context, index) {
-            final data = docs[index].data() as Map<String, dynamic>;
+            final data = filteredDocs[index].data() as Map<String, dynamic>;
             final base64Image = data['imageBase64'];
             final reportedBy = data['reportedBy'] ?? 'Unknown';
             ImageProvider? imageProvider;
@@ -87,6 +103,8 @@ class MissingItemsTab extends StatelessWidget {
               imageProvider = MemoryImage(base64Decode(base64Image));
             }
 
+            // You might want to add a GestureDetector here to navigate to a MissingItemDetailsScreen
+            // similar to FoundItemDetailsScreen, if you have one.
             return Card(
               color: const Color(0xFF1A4140),
               elevation: 3,
@@ -146,7 +164,7 @@ class MissingItemsTab extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
-
+                          // Add other missing item specific details here if available, e.g., last seen date, contact info
                         ],
                       ),
                     ),
@@ -154,7 +172,6 @@ class MissingItemsTab extends StatelessWidget {
                 ),
               ),
             );
-
           },
         );
       },
