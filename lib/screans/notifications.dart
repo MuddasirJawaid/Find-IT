@@ -137,24 +137,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5DEB3),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A4140),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Color(0xFFFFF8E7)),
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.travel_explore_rounded,
-                color: Color(0xFFF5DEB3), size: 28),
-            SizedBox(width: 8),
-            Text('Notifications',
-                style: TextStyle(
-                    color: Color(0xFFFFFFFF),
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
+
       body: StreamBuilder<QuerySnapshot>(
         stream: _firestore
             .collection('notifications')

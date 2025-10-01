@@ -7,6 +7,7 @@ class AuthProvider extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   User? _user;
+  Map<String, dynamic>? _userData; // 👈 Firestore se user data
   bool _isLoading = false; // For active login/register operations
   String? _errorMessage;
   bool _isAuthReady = false; // New flag to indicate initial auth state is determined
@@ -16,8 +17,13 @@ class AuthProvider extends ChangeNotifier {
     _user = _auth.currentUser;
 
     // Listen to authentication state changes
-    _auth.authStateChanges().listen((user) {
+    _auth.authStateChanges().listen((user) async {
       _user = user;
+      if (_user != null) {
+        await _loadUserData(); // 👈 Firestore user data load karna
+      } else {
+        _userData = null;
+      }
       // Once the first event from authStateChanges comes, it means Firebase
       // has determined the initial authentication state.
       if (!_isAuthReady) {
@@ -28,10 +34,21 @@ class AuthProvider extends ChangeNotifier {
   }
 
   User? get user => _user;
+  Map<String, dynamic>? get userData => _userData; // 👈 Getter for Firestore data
   bool get isLoggedIn => _user != null;
   bool get isLoading => _isLoading; // For login/register process
   bool get isAuthReady => _isAuthReady; // For initial app load
   String? get errorMessage => _errorMessage;
+
+  /// 🔹 Load Firestore User Data
+  Future<void> _loadUserData() async {
+    if (_user != null) {
+      final doc = await _firestore.collection('users').doc(_user!.uid).get();
+      if (doc.exists) {
+        _userData = doc.data();
+      }
+    }
+  }
 
   /// ✅ LOGIN
   Future<bool> login(String email, String password) async {
@@ -74,8 +91,10 @@ class AuthProvider extends ChangeNotifier {
           'email': email,
           'phone': phone,
           'city': city,
+          'profilePic': "", // 👈 Default empty string for profile pic
           'createdAt': FieldValue.serverTimestamp(),
         });
+        await _loadUserData(); // 👈 Register ke baad data load
       }
 
       _setLoading(false);
@@ -104,9 +123,19 @@ class AuthProvider extends ChangeNotifier {
   /// ✅ LOGOUT
   Future<void> logout([BuildContext? context]) async {
     await _auth.signOut();
+    _userData = null; // 👈 Firestore data clear
     // _user will be set to null by the authStateChanges listener
     // _isAuthReady will remain true, as the initial check is done.
     notifyListeners();
+  }
+
+  /// 🔹 Update Profile Data
+  Future<void> updateProfile(Map<String, dynamic> data) async {
+    if (_user != null) {
+      await _firestore.collection('users').doc(_user!.uid).update(data);
+      await _loadUserData(); // 👈 Refresh after update
+      notifyListeners();
+    }
   }
 
   /// 🔹 Helpers

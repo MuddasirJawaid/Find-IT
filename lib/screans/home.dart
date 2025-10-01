@@ -1,10 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../provider/auth_provider.dart' as myAuth;
-import '../widgets/found_widget.dart'; // Make sure this is the path to your FoundItemsTab
-import '../widgets/missing_widget.dart'; // Make sure this is the path to your MissingItemsTab
+import '../widgets/found_widget.dart';
+import '../widgets/missing_widget.dart';
 import 'help.dart';
 import 'history.dart';
 import 'is_this_yours_screan.dart';
@@ -15,7 +17,6 @@ import 'report_found_item_screen.dart';
 import 'report_missing_item_screen.dart';
 import 'resetpassword.dart';
 
-// (Your _HomeContentBody widget remains unchanged as it's not the source of this error)
 class _HomeContentBody extends StatefulWidget {
   const _HomeContentBody({super.key});
 
@@ -30,8 +31,7 @@ class _HomeContentBodyState extends State<_HomeContentBody> {
   Position? _currentPosition;
   bool _hasRequestedPermissionThisSession = false;
 
-  // Define the desired filter radius here (1 km)
-  final double _nearbyRadiusKm = 1.0; // 1 kilometer radius
+  final double _nearbyRadiusKm = 1.0;
 
   @override
   void initState() {
@@ -46,12 +46,15 @@ class _HomeContentBodyState extends State<_HomeContentBody> {
     if (!serviceEnabled) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Location services are disabled. Please enable them for full functionality.")),
+          const SnackBar(
+              content: Text(
+                  "Location services are disabled. Please enable them for full functionality.")),
         );
       }
     }
     LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied && !_hasRequestedPermissionThisSession) {
+    if (permission == LocationPermission.denied &&
+        !_hasRequestedPermissionThisSession) {
       permission = await Geolocator.requestPermission();
       _hasRequestedPermissionThisSession = true;
       if (permission == LocationPermission.denied) {
@@ -72,7 +75,8 @@ class _HomeContentBodyState extends State<_HomeContentBody> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text("Location Permission Required"),
-          content: const Text("This app requires location permission to function. Please grant permission to continue."),
+          content: const Text(
+              "This app requires location permission to function. Please grant permission to continue."),
           actions: <Widget>[
             TextButton(
               child: const Text("Grant Permission"),
@@ -100,7 +104,8 @@ class _HomeContentBodyState extends State<_HomeContentBody> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text("Location Permission Permanently Denied"),
-          content: const Text("Location permission is permanently denied. Please go to app settings and enable it manually to use this app."),
+          content: const Text(
+              "Location permission is permanently denied. Please go to app settings and enable it manually to use this app."),
           actions: <Widget>[
             TextButton(
               child: const Text("Open Settings"),
@@ -128,7 +133,9 @@ class _HomeContentBodyState extends State<_HomeContentBody> {
     if (!serviceEnabled) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Location services are disabled. Please enable them to use Nearby.")),
+          const SnackBar(
+              content: Text(
+                  "Location services are disabled. Please enable them to use Nearby.")),
         );
       }
       return;
@@ -139,7 +146,9 @@ class _HomeContentBodyState extends State<_HomeContentBody> {
       if (permission == LocationPermission.denied) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Location permissions are denied. Cannot use nearby filter.")),
+            const SnackBar(
+                content: Text(
+                    "Location permissions are denied. Cannot use nearby filter.")),
           );
         }
         return;
@@ -148,21 +157,26 @@ class _HomeContentBodyState extends State<_HomeContentBody> {
     if (permission == LocationPermission.deniedForever) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Location permissions are permanently denied. Enable from app settings.")),
+          const SnackBar(
+              content: Text(
+                  "Location permissions are permanently denied. Enable from app settings.")),
         );
         Geolocator.openAppSettings();
       }
       return;
     }
     try {
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
       setState(() {
         _currentPosition = position;
         _nearbyFilter = true;
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Nearby filter applied within ${_nearbyRadiusKm}km!")), // Updated message
+          SnackBar(
+              content:
+              Text("Nearby filter applied within ${_nearbyRadiusKm}km!")),
         );
       }
     } catch (e) {
@@ -176,12 +190,9 @@ class _HomeContentBodyState extends State<_HomeContentBody> {
 
   @override
   Widget build(BuildContext context) {
-    double width = MediaQuery.of(context).size.width;
-    int crossAxisCount = width > 600 ? 3 : (width > 400 ? 2 : 1);
-    double aspectRatio = width > 600 ? 0.9 : 0.8;
-
     return Column(
       children: [
+        // 🔎 Search bar
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
@@ -197,10 +208,11 @@ class _HomeContentBodyState extends State<_HomeContentBody> {
                     decoration: InputDecoration(
                       hintText: 'Search by item name or description',
                       hintStyle: const TextStyle(color: Colors.black),
-                      prefixIcon: const Icon(Icons.search, color: Colors.black),
+                      prefixIcon:
+                      const Icon(Icons.search, color: Colors.black),
                       border: InputBorder.none,
-                      contentPadding:
-                      const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14, horizontal: 16),
                     ),
                     onChanged: (value) {
                       setState(() {
@@ -234,6 +246,8 @@ class _HomeContentBodyState extends State<_HomeContentBody> {
             ],
           ),
         ),
+
+        // 🔘 Tabs (Found / Missing)
         Padding(
           padding: const EdgeInsets.all(8),
           child: Wrap(
@@ -272,21 +286,19 @@ class _HomeContentBodyState extends State<_HomeContentBody> {
             ],
           ),
         ),
+
+        // 📦 Content
         Expanded(
           child: _selectedChipIndex == 0
               ? FoundItemsTab(
-            crossAxisCount: crossAxisCount,
-            aspectRatio: aspectRatio,
             searchQuery: _searchQuery,
             nearbyPosition: _nearbyFilter ? _currentPosition : null,
-            distanceFilterKm: _nearbyRadiusKm, // Pass the 1km radius here
+            distanceFilterKm: _nearbyRadiusKm,
           )
-              : MissingItemsTab( // Assuming you have a MissingItemsTab similar to FoundItemsTab
-            crossAxisCount: crossAxisCount,
-            aspectRatio: aspectRatio,
+              : MissingItemsTab(
             searchQuery: _searchQuery,
             nearbyPosition: _nearbyFilter ? _currentPosition : null,
-            distanceFilterKm: _nearbyRadiusKm, // Pass the 1km radius here
+            distanceFilterKm: _nearbyRadiusKm,
           ),
         ),
       ],
@@ -294,7 +306,6 @@ class _HomeContentBodyState extends State<_HomeContentBody> {
   }
 }
 
-// --- START: Main Homescreen (Now with Bottom Navigation) ---
 class Homescreen extends StatefulWidget {
   const Homescreen({super.key});
 
@@ -303,14 +314,20 @@ class Homescreen extends StatefulWidget {
 }
 
 class _HomescreenState extends State<Homescreen> {
-  int _currentIndex = 0; // Controls the selected tab in BottomNavigationBar
+  int _currentIndex = 0;
 
-  // Updated List of screens for the BottomNavigationBar
   final List<Widget> _screens = [
-    const _HomeContentBody(),     // Index 0: Home/Main Content
-    const IsThisYoursScreen(),    // Index 1: "Is This Yours?"
-    const NotificationsScreen(),  // Index 2: Notifications
-    const ProfileTab(),           // Index 3: Profile
+    const _HomeContentBody(),
+    const IsThisYoursScreen(),
+    const NotificationsScreen(),
+    const ProfileTab(),
+  ];
+
+  final List<String> _titles = [
+    "Find-IT",
+    "Is This Yours?",
+    "Notifications",
+    "Profile"
   ];
 
   void _onFabPressed(BuildContext context) {
@@ -359,8 +376,8 @@ class _HomescreenState extends State<Homescreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Ensure you handle the case where user might be null, e.g., if not logged in
-    final userEmail = Provider.of<myAuth.AuthProvider>(context).user?.email ?? "Guest";
+    final userEmail =
+        Provider.of<myAuth.AuthProvider>(context).user?.email ?? "Guest";
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5DEB3),
@@ -368,20 +385,26 @@ class _HomescreenState extends State<Homescreen> {
         backgroundColor: const Color(0xFF1A4140),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Color(0xFFFFF8E7)),
-        title: Row(
-          mainAxisSize: MainAxisSize.min, // Use min to center the Row content
+        title: _currentIndex == 0
+            ? const Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.travel_explore_rounded,
+            Icon(Icons.travel_explore_rounded,
                 color: Color(0xFFF5DEB3), size: 28),
-            const SizedBox(width: 8),
-            const Text('Find-IT',
+            SizedBox(width: 8),
+            Text('Find-IT',
                 style: TextStyle(
                     color: Color(0xFFFFFFFF),
                     fontSize: 22,
                     fontWeight: FontWeight.bold)),
-            // Removed Spacer and IconButton from here to simplify AppBar title
-            // as profile is now in bottom nav and drawer
           ],
+        )
+            : Text(
+          _titles[_currentIndex],
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold),
         ),
       ),
       drawer: Drawer(
@@ -393,79 +416,133 @@ class _HomescreenState extends State<Homescreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.account_circle,
-                      color: Color(0xFFF5DEB3), size: 50),
+                  Consumer<myAuth.AuthProvider>(
+                    builder: (context, auth, _) {
+                      final userData = auth.userData;
+
+                      if (userData != null &&
+                          userData["profilePic"] != null &&
+                          userData["profilePic"].toString().isNotEmpty) {
+                        try {
+                          final bytes =
+                          base64Decode(userData["profilePic"]);
+                          return CircleAvatar(
+                            radius: 30,
+                            backgroundImage: MemoryImage(bytes),
+                          );
+                        } catch (e) {
+                          return const CircleAvatar(
+                            radius: 30,
+                            child: Icon(Icons.person, size: 30),
+                          );
+                        }
+                      } else {
+                        return const CircleAvatar(
+                          radius: 30,
+                          child: Icon(Icons.person, size: 30),
+                        );
+                      }
+                    },
+                  ),
                   const SizedBox(height: 10),
-                  Text(userEmail,
-                      style: const TextStyle(color: Colors.white),
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    userEmail,
+                    style: const TextStyle(color: Colors.white),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.assignment, color: Color(0xFFF5DEB3)),
-              title:
-              const Text('My Reports', style: TextStyle(color: Colors.white)),
+              leading:
+              const Icon(Icons.assignment, color: Color(0xFFF5DEB3)),
+              title: const Text('My Reports',
+                  style: TextStyle(color: Colors.white)),
               onTap: () {
-                Navigator.pop(context); // Close drawer
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const MyReportsScreen()));
+                Navigator.pop(context);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const MyReportsScreen()));
               },
             ),
             ListTile(
-              leading: const Icon(Icons.notifications, color: Color(0xFFF5DEB3)),
-              title: const Text('Notifications', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.notifications,
+                  color: Color(0xFFF5DEB3)),
+              title: const Text('Notifications',
+                  style: TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
-                // Navigate to notifications screen, or switch bottom nav tab
-                setState(() { _currentIndex = 2; }); // Switch to notifications tab
+                setState(() {
+                  _currentIndex = 2;
+                });
               },
             ),
             ListTile(
-              leading: const Icon(Icons.person, color: Color(0xFFF5DEB3)),
-              title: const Text('Profile', style: TextStyle(color: Colors.white)),
+              leading:
+              const Icon(Icons.person, color: Color(0xFFF5DEB3)),
+              title: const Text('Profile',
+                  style: TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
-                // Navigate to profile screen, or switch bottom nav tab
-                setState(() { _currentIndex = 3; }); // Switch to profile tab
+                setState(() {
+                  _currentIndex = 3;
+                });
               },
             ),
             ListTile(
-              leading: const Icon(Icons.history, color: Color(0xFFF5DEB3)),
-              title: const Text('History', style: TextStyle(color: Colors.white)),
+              leading:
+              const Icon(Icons.history, color: Color(0xFFF5DEB3)),
+              title: const Text('History',
+                  style: TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const HistoryScreen()));
               },
             ),
             const Divider(color: Colors.white70),
             ListTile(
-              leading: const Icon(Icons.lock_reset, color: Color(0xFFF5DEB3)),
+              leading: const Icon(Icons.lock_reset,
+                  color: Color(0xFFF5DEB3)),
               title: const Text('Reset Password',
                   style: TextStyle(color: Colors.white)),
               onTap: () {
-                Navigator.pop(context); // Close drawer
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const ResetPasswordScreen()));
+                Navigator.pop(context);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ResetPasswordScreen()));
               },
             ),
             ListTile(
-              leading: const Icon(Icons.help_outline, color: Color(0xFFF5DEB3)),
-              title: const Text('Help', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.help_outline,
+                  color: Color(0xFFF5DEB3)),
+              title:
+              const Text('Help', style: TextStyle(color: Colors.white)),
               onTap: () {
-                Navigator.pop(context); // Close drawer
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const HelpScreen()));
+                Navigator.pop(context);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const HelpScreen()));
               },
             ),
             const Divider(color: Colors.white70),
             ListTile(
-              leading: const Icon(Icons.logout, color: Colors.redAccent),
-              title: const Text('Logout', style: TextStyle(color: Colors.redAccent)),
+              leading:
+              const Icon(Icons.logout, color: Colors.redAccent),
+              title: const Text('Logout',
+                  style: TextStyle(color: Colors.redAccent)),
               onTap: () async {
-                await Provider.of<myAuth.AuthProvider>(context, listen: false).logout();
+                await Provider.of<myAuth.AuthProvider>(context,
+                    listen: false)
+                    .logout();
                 if (mounted) {
-                  Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                  Navigator.pushNamedAndRemoveUntil(
+                      context, '/login', (route) => false);
                 }
               },
             ),
@@ -479,10 +556,12 @@ class _HomescreenState extends State<Homescreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF1A4140),
         shape: const CircleBorder(),
-        child: const Icon(Icons.add, color: Color(0xFFF5DEB3)),
+        child:
+        const Icon(Icons.add, color: Color(0xFFF5DEB3)),
         onPressed: () => _onFabPressed(context),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation:
+      FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
         color: const Color(0xFF1A4140),
         shape: const CircularNotchedRectangle(),
@@ -490,12 +569,11 @@ class _HomescreenState extends State<Homescreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: <Widget>[
-            // Left items
             Expanded(
               child: InkWell(
                 onTap: () {
                   setState(() {
-                    _currentIndex = 0; // Home
+                    _currentIndex = 0;
                   });
                 },
                 child: SizedBox(
@@ -505,14 +583,17 @@ class _HomescreenState extends State<Homescreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.home,
-                        size: 20.0,
-                        color: _currentIndex == 0 ? const Color(0xFFF5DEB3) : const Color(0xFFFFF8E7),
-                      ),
+                          size: 20.0,
+                          color: _currentIndex == 0
+                              ? const Color(0xFFF5DEB3)
+                              : const Color(0xFFFFF8E7)),
                       FittedBox(
                         child: Text(
                           'Home',
                           style: TextStyle(
-                            color: _currentIndex == 0 ? const Color(0xFFF5DEB3) : const Color(0xFFFFF8E7),
+                            color: _currentIndex == 0
+                                ? const Color(0xFFF5DEB3)
+                                : const Color(0xFFFFF8E7),
                             fontSize: 10,
                           ),
                         ),
@@ -526,7 +607,7 @@ class _HomescreenState extends State<Homescreen> {
               child: InkWell(
                 onTap: () {
                   setState(() {
-                    _currentIndex = 1; // Is This Yours?
+                    _currentIndex = 1;
                   });
                 },
                 child: SizedBox(
@@ -536,14 +617,17 @@ class _HomescreenState extends State<Homescreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.question_mark_rounded,
-                        size: 20.0,
-                        color: _currentIndex == 1 ? const Color(0xFFF5DEB3) : const Color(0xFFFFF8E7),
-                      ),
+                          size: 20.0,
+                          color: _currentIndex == 1
+                              ? const Color(0xFFF5DEB3)
+                              : const Color(0xFFFFF8E7)),
                       FittedBox(
                         child: Text(
                           'Is This Yours?',
                           style: TextStyle(
-                            color: _currentIndex == 1 ? const Color(0xFFF5DEB3) : const Color(0xFFFFF8E7),
+                            color: _currentIndex == 1
+                                ? const Color(0xFFF5DEB3)
+                                : const Color(0xFFFFF8E7),
                             fontSize: 10,
                           ),
                         ),
@@ -553,16 +637,12 @@ class _HomescreenState extends State<Homescreen> {
                 ),
               ),
             ),
-
-            // Spacer for FAB
             const SizedBox(width: 48),
-
-            // Right items
             Expanded(
               child: InkWell(
                 onTap: () {
                   setState(() {
-                    _currentIndex = 2; // Notifications
+                    _currentIndex = 2;
                   });
                 },
                 child: SizedBox(
@@ -572,14 +652,17 @@ class _HomescreenState extends State<Homescreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.notifications,
-                        size: 20.0,
-                        color: _currentIndex == 2 ? const Color(0xFFF5DEB3) : const Color(0xFFFFF8E7),
-                      ),
+                          size: 20.0,
+                          color: _currentIndex == 2
+                              ? const Color(0xFFF5DEB3)
+                              : const Color(0xFFFFF8E7)),
                       FittedBox(
                         child: Text(
                           'Notify',
                           style: TextStyle(
-                            color: _currentIndex == 2 ? const Color(0xFFF5DEB3) : const Color(0xFFFFF8E7),
+                            color: _currentIndex == 2
+                                ? const Color(0xFFF5DEB3)
+                                : const Color(0xFFFFF8E7),
                             fontSize: 10,
                           ),
                         ),
@@ -593,7 +676,7 @@ class _HomescreenState extends State<Homescreen> {
               child: InkWell(
                 onTap: () {
                   setState(() {
-                    _currentIndex = 3; // Profile
+                    _currentIndex = 3;
                   });
                 },
                 child: SizedBox(
@@ -603,14 +686,17 @@ class _HomescreenState extends State<Homescreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.person,
-                        size: 20.0,
-                        color: _currentIndex == 3 ? const Color(0xFFF5DEB3) : const Color(0xFFFFF8E7),
-                      ),
+                          size: 20.0,
+                          color: _currentIndex == 3
+                              ? const Color(0xFFF5DEB3)
+                              : const Color(0xFFFFF8E7)),
                       FittedBox(
                         child: Text(
                           'Profile',
                           style: TextStyle(
-                            color: _currentIndex == 3 ? const Color(0xFFF5DEB3) : const Color(0xFFFFF8E7),
+                            color: _currentIndex == 3
+                                ? const Color(0xFFF5DEB3)
+                                : const Color(0xFFFFF8E7),
                             fontSize: 10,
                           ),
                         ),

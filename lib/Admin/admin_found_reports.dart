@@ -29,7 +29,7 @@ class AdminFoundReportsScreen extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('reports')
-            .where('reportType', isEqualTo: 'Found Item') // ensure your Firestore uses 'found'
+            .where('reportType', isEqualTo: 'found') // ensure your Firestore uses 'found'
             .orderBy('timestamp', descending: true)
             .snapshots(),
         builder: (context, snapshot) {

@@ -127,23 +127,7 @@ class _IsThisYoursScreenState extends State<IsThisYoursScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A4140),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Color(0xFFFFF8E7)),
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.help_outline, color: Color(0xFFF5DEB3), size: 28),
-            SizedBox(width: 8),
-            Text('Is This Yours?',
-                style: TextStyle(
-                    color: Color(0xFFFFFFFF),
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
+
       backgroundColor: const Color(0xFFF5DEB3),
       body: StreamBuilder<QuerySnapshot>(
         stream: _firestore

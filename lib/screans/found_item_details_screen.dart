@@ -3,7 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:intl/intl.dart'; // <<< Ye naya import hai DateTime formatting ke liye
+import 'package:intl/intl.dart';
+
+// <<< Naya import: MyItemClaimsScreen ko import karein
+import 'package:findit/screans/my_item_claims_screen.dart'; // Adjust path if different
 
 class FoundItemDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -317,15 +320,26 @@ class _FoundItemDetailsScreenState extends State<FoundItemDetailsScreen> {
                 child: CircularProgressIndicator(color: Color(0xFF1A4140)),
               ),
             )
-          else if (showClaimButton) // Show button if not claimed yet
+          else if (isFounder) // If the current user is the founder
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               child: ElevatedButton.icon(
-                onPressed: () => _showClaimDialog(context),
-                icon: const Icon(Icons.assignment_turned_in, color: Color(0xFFF5DEB3)),
+                onPressed: () {
+                  // Navigate to MyItemClaimsScreen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => MyItemClaimsScreen(
+                        foundItemId: widget.reportId,
+                        founderItemName: widget.data['itemName'] ?? 'Your Item',
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.view_list, color: Color(0xFFF5DEB3)),
                 label: const Text(
-                  'Claim This Item',
+                  'View Claims on This Item',
                   style: TextStyle(fontSize: 18, color: Color(0xFFF5DEB3), fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(
@@ -334,30 +348,47 @@ class _FoundItemDetailsScreenState extends State<FoundItemDetailsScreen> {
                 ),
               ),
             )
-          else if (showClaimedMessage) // Show message if already claimed
+          else if (showClaimButton) // Show button if not claimed yet
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Color(0xFF1A4140), // A green background for "claimed" status
-                    borderRadius: BorderRadius.circular(8),
+                child: ElevatedButton.icon(
+                  onPressed: () => _showClaimDialog(context),
+                  icon: const Icon(Icons.assignment_turned_in, color: Color(0xFFF5DEB3)),
+                  label: const Text(
+                    'Claim This Item',
+                    style: TextStyle(fontSize: 18, color: Color(0xFFF5DEB3), fontWeight: FontWeight.bold),
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.check_circle, color: Color(0xFFF5DEB3)),
-                      SizedBox(width: 8),
-                      Text(
-                        'You have already claimed this item',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 16, color: Color(0xFFF5DEB3), fontWeight: FontWeight.bold),
-                      ),
-                    ],
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A4140),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
-              ),
+              )
+            else if (showClaimedMessage) // Show message if already claimed
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A4140), // A green background for "claimed" status
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.check_circle, color: Color(0xFFF5DEB3)),
+                        SizedBox(width: 8),
+                        Text(
+                          'You have already claimed this item',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 16, color: Color(0xFFF5DEB3), fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
         ],
       ),
     );

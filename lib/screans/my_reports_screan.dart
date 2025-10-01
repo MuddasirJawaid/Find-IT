@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'found_item_details_screen.dart';
+import 'viewers_screen.dart';
+import 'my_item_claims_screen.dart'; // MyItemClaimsScreen ko import karein
 
 class MyReportsScreen extends StatelessWidget {
   const MyReportsScreen({super.key});
@@ -28,7 +30,7 @@ class MyReportsScreen extends StatelessWidget {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF1A4140),),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1A4140),),
               child: const Text("Confirm", style: TextStyle(color: Color(0xFFF5DEB3)),),
             ),
           ],
@@ -54,9 +56,6 @@ class MyReportsScreen extends StatelessWidget {
     }
   }
 
-  // _markAsRecovered function has been removed as per your request.
-  // Missing reports status will now only be changed by admin.
-
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -72,22 +71,13 @@ class MyReportsScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF1A4140),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Color(0xFFFFF8E7)),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.travel_explore_rounded,
-                color: Color(0xFFF5DEB3), size: 28),
-            const SizedBox(width: 8),
-            const Text('My Reports',
-                style: TextStyle(
-                    color: Color(0xFFFFFFFF),
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold)),
-            const Spacer(),
-          ],
-        ),
+        title: const Text('My Reports',
+            style: TextStyle(
+                color: Color(0xFFFFFFFF),
+                fontSize: 22,
+                fontWeight: FontWeight.bold)),
       ),
-      backgroundColor: const Color(0xFF1A4140),
+      backgroundColor: const Color(0xFFF5DEB3),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('reports')
@@ -97,6 +87,9 @@ class MyReportsScreen extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: Color(0xFF1A4140)));
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(
@@ -117,21 +110,59 @@ class MyReportsScreen extends StatelessWidget {
               final imageTag = "reportImageTag_$docId";
 
               final status = (data['status'] ?? 'with founder').toString();
-              final reportType = (data['reportType'] ?? '').toString(); // Get report type
+              final reportType = (data['reportType'] ?? '').toString();
 
-              // Condition for showing "Mark as Delivered to Police" button
+              final int viewsCount = data['views'] ?? 0;
+              final List<String> viewedByUids = List<String>.from(data['viewedBy'] ?? []);
+
               final canMarkDelivered = reportType == 'found' && status == 'with founder';
+              final isMissingReport = reportType == 'missing';
 
-              // Determine status text to display
               String displayStatusText;
-              if (reportType == 'missing') {
-                displayStatusText = "Status: Admin Controlled"; // Changed for missing reports
+              if (isMissingReport) {
+                displayStatusText = "Status: Admin Controlled";
               } else {
                 displayStatusText = "Status: $status";
               }
 
+              Widget? trailingWidget;
+              if (isMissingReport) {
+                trailingWidget = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Views: $viewsCount',
+                      style: const TextStyle(color: Color(0xFFF5DEB3), fontSize: 12),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.remove_red_eye, color: Color(0xFFF5DEB3)),
+                      tooltip: "Viewers",
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ViewersScreen(viewedByUids: viewedByUids),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              } else if (canMarkDelivered) {
+                trailingWidget = IconButton(
+                  icon: const Icon(Icons.local_police, color: Color(0xFFF5DEB3)),
+                  tooltip: "Mark as Delivered to Police",
+                  onPressed: () {
+                    _markAsDeliveredToPolice(context, docId);
+                  },
+                );
+              }
+
               return Card(
                 color: const Color(0xFF1A4140),
+                margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 4,
                 child: ListTile(
                   leading: (data['imageBase64'] != null &&
                       data['imageBase64'] != 'null' &&
@@ -156,37 +187,35 @@ class MyReportsScreen extends StatelessWidget {
                         style: const TextStyle(color: Colors.white70),
                       ),
                       Text(
-                        displayStatusText, // Use the determined status text
+                        displayStatusText,
                         style: const TextStyle(color: Colors.white54),
                       ),
                     ],
                   ),
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => FoundItemDetailsScreen(
-                          data: data,
-                          imageBytes: (data['imageBase64'] != null &&
-                              data['imageBase64'] != 'null' &&
-                              (data['imageBase64'] as String).isNotEmpty)
-                              ? base64Decode(data['imageBase64'])
-                              : null,
-                          heroTag: imageTag,
-                          reportId: docId,
+                    // Yahan par conditional navigation ka logic
+                    if (isMissingReport) {
+                      // Agar missing report hai, to seedha ViewersScreen par le jaein
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ViewersScreen(viewedByUids: viewedByUids),
                         ),
-                      ),
-                    );
+                      );
+                    } else {
+                      // Found report hai, to MyItemClaimsScreen par le jaein
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MyItemClaimsScreen(
+                            foundItemId: docId,
+                            founderItemName: data['itemName'] ?? 'Your Item',
+                          ),
+                        ),
+                      );
+                    }
                   },
-                  trailing: canMarkDelivered
-                      ? IconButton(
-                    icon: const Icon(Icons.local_police, color: Color(0xFFF5DEB3)),
-                    tooltip: "Mark as Delivered to Police",
-                    onPressed: () {
-                      _markAsDeliveredToPolice(context, docId);
-                    },
-                  )
-                      : null, // No button for missing items or other statuses
+                  trailing: trailingWidget,
                 ),
               );
             },
